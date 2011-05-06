@@ -25,6 +25,9 @@ class FilterControl(object):
     register = classmethod(register)
 
     def create_from_modelfield(cls, f, field_name, label=None):
+        # get choices for Foreign Key fields to populate select widget
+        if isinstance(f,models.ForeignKey):
+            cls.choices = f.get_choices()
         for test, factory, datatype in cls.filter_controls:
             if test(f):
                 return factory(field_name,label)
@@ -53,6 +56,13 @@ class BooleanFilterControl(FilterControl):
                 required=False,widget=forms.RadioSelect(choices=(('','All'),('1','True'),('0','False'))),initial='A')}
 
 FilterControl.register(lambda m: isinstance(m,models.BooleanField),BooleanFilterControl,"boolean")
+
+class ForeignKeyFilterControl(FilterControl):
+    def get_fields(self):
+        return {self.field_name:forms.ChoiceField(label=self.label or self.field_name, 
+                required=False, choices=self.choices)}
+
+FilterControl.register(lambda m: isinstance(m,models.ForeignKey),ForeignKeyFilterControl,"foreignkey")
 
 # TODO How do I register this one?
 class StartsWithFilterControl(FilterControl):
