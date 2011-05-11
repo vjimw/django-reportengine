@@ -17,7 +17,11 @@ class FilterControl(object):
         self.label=label
 
     def get_fields(self):
-        return {self.field_name:forms.CharField(label=self.label or self.field_name,required=False)}
+        if hasattr(self, 'choices'):
+            return {self.field_name:forms.ChoiceField(label=self.label or self.field_name, 
+                required=False, choices=self.choices)}
+        else:
+            return {self.field_name:forms.CharField(label=self.label or self.field_name,required=False)}
 
     # Pulled from django.contrib.admin.filterspecs
     def register(cls, test, factory, datatype):
@@ -25,9 +29,18 @@ class FilterControl(object):
     register = classmethod(register)
 
     def create_from_modelfield(cls, f, field_name, label=None):
-        # get choices for Foreign Key fields to populate select widget
-        if isinstance(f,models.ForeignKey):
-            cls.choices = f.get_choices()
+        # get choices for Foreign Key plus Char and Integer fields with choices set to change to and to populate select widget
+        if hasattr(f, 'get_choices'):
+            try:
+                cls.choices = f.get_choices()
+            except(AttributeError):
+                # all charfields have get_choices
+                # but if no choices are set, which is normally the case
+                # this error is thrown because Django assumes
+                # there is a foreign key relationship to follow
+                # there is not, so pass
+                pass
+
         for test, factory, datatype in cls.filter_controls:
             if test(f):
                 return factory(field_name,label)
@@ -40,6 +53,7 @@ class FilterControl(object):
     create_from_datatype = classmethod(create_from_datatype)
 
 FilterControl.register(lambda m: isinstance(m,models.CharField),FilterControl,"char")
+FilterControl.register(lambda m: isinstance(m,models.IntegerField),FilterControl,"integer")
 
 class DateTimeFilterControl(FilterControl):
     def get_fields(self):
@@ -53,7 +67,7 @@ FilterControl.register(lambda m: isinstance(m,models.DateTimeField),DateTimeFilt
 class BooleanFilterControl(FilterControl):
     def get_fields(self):
         return {self.field_name:forms.CharField(label=self.label or self.field_name,
-                required=False,widget=forms.RadioSelect(choices=(('','All'),('1','True'),('0','False'))),initial='A')}
+                required=False,widget=forms.Select(choices=(('','All'),('1','True'),('0','False'))),initial='A')}
 
 FilterControl.register(lambda m: isinstance(m,models.BooleanField),BooleanFilterControl,"boolean")
 
@@ -63,6 +77,18 @@ class ForeignKeyFilterControl(FilterControl):
                 required=False, choices=self.choices)}
 
 FilterControl.register(lambda m: isinstance(m,models.ForeignKey),ForeignKeyFilterControl,"foreignkey")
+
+# TODO add a filter control that is not based on a field, but on a method that returns a query or data to filter by
+class CustomMaskFilterControl(FilterControl):
+    # this is not a filter based on a field on the model in question; however it will be related to the field for filtering but have a number of subconditions
+    # Effectively a subreport used to the filter the larger report
+    def __init__(self, field_name, label=None):
+        self.field_name=field_name
+        self.label=label
+        
+    def get_fields(self):
+        return {"%s__custom_mask"%self.field_name:forms.BooleanField(label=self.label or self.field_name, required=False)}
+
 
 # TODO How do I register this one?
 class StartsWithFilterControl(FilterControl):

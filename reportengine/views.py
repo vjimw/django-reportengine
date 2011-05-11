@@ -9,6 +9,7 @@ import reportengine
 from urllib import urlencode
 import datetime,calendar
 
+
 def next_month(d):
     """helper to get next month"""
     return datetime.datetime(year=d.month<12 and d.year or d.year +1,month=d.month<12 and d.month+1 or 1,day=1)
@@ -62,8 +63,11 @@ def view_report(request, namespace, slug, output=None):
 
     # Merge filters with default mask
     mask = report.get_default_mask()
+    # get_custom_make alters the filters passed in removing 
+    # them from the filters if they are a custom mask
+    custom_mask, filters = report.get_custom_mask(filters)
+    mask.update(custom_mask)
     mask.update(filters)
-
 
     # pull the rows and aggregates
     rows,aggregates = report.get_rows(mask,order_by=order_by)

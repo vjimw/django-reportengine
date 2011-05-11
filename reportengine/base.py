@@ -9,6 +9,7 @@ from filtercontrols import *
 from outputformats import *
 import datetime
 
+
 # Pulled from vitalik's Django-reporting
 def get_model_field(model, name):
     return model._meta.get_field(name)
@@ -34,6 +35,8 @@ class Report(object):
     allow_unspecified_filters = False
     date_field = None  # if specified will lookup for this date field. .this is currently limited to queryset based lookups
     default_mask = {}  # a dict of filter default values. Can be callable
+    custom_mask_filter_control = {} # a dictionary of custom masks with field to filter on and callable method to filter that field on. 
+    # e.g. {'never_sitewide__custom_mask': ('number__in', get_never_sitewide)} where get_never_sitewide is a callable method that returns a list of numbers to be filters by number_in=[]
 
     # TODO add charts = [ {'name','type e.g. bar','data':(0,1,3) cols in table}]
     # then i can auto embed the charts at the top of the report based upon that data..
@@ -41,10 +44,35 @@ class Report(object):
     def get_default_mask(self):
         """Builds default mask. The filter is merged with this to create the filter for the report. Items can be callable and will be resolved when called here (which should be at view time)."""
         m={}
+        
+        # for our SubQueryFilterControl we want to get the method results and not the value of the django form field... 
+        # if the form field evaluates to True
+        # Otherwise, ignore it.
+        
         for k in self.default_mask.keys():
-            v=self.default_mask[k]
+            v=self.default_mask[k]            
             m[k] =  callable(v) and v() or v
         return m 
+    
+    def get_custom_mask(self, filters):
+        """
+            Combined with the CustomMaskFilterControl you can execute a mask based on a checkbox in the report.
+            This checkbox is then popped from the requests as its function was executed.
+        """
+        m={}
+        # get any keys that exist as custom mask filter controls
+        intersect = filter(filters.has_key, self.custom_mask_filter_control.keys())
+        
+        # for any keys that are custom make filter controls
+        for k in intersect:
+            # If filter value executes True, execute custom mask
+            if filters[k]:
+                mask = self.custom_mask_filter_control[k]
+                v=mask[1]            
+                m[mask[0]] =  callable(v) and v() or v
+            # Always delete custom mask from filters when complete
+            del filters[k]
+        return m, filters 
 
     def get_filter_form(self,request):
         form = forms.Form(data=request.REQUEST)
@@ -75,7 +103,9 @@ class QuerySetReport(Report):
         form = forms.Form(data=request.REQUEST)
         for f in self.list_filter:
             # Allow specification of custom filter control, or specify field name (and label?)
-            if isinstance(f,FilterControl):
+            if isinstance(f,CustomMaskFilterControl):
+                control=f
+            elif isinstance(f,FilterControl):
                 control=f
             else:
                 mfi,mfm=get_lookup_field(self.queryset.model,self.queryset.model,f)
@@ -88,6 +118,7 @@ class QuerySetReport(Report):
         return form
  
     def get_rows(self,filters={},order_by=None):
+    
         qs=self.queryset.filter(**filters)
         if order_by:
             qs=qs.order_by(order_by)
