@@ -10,6 +10,7 @@ from django.utils.translation import ugettext as _
 # TODO build register and lookup functions
 # TODO figure out how to manage filters and actual request params, which aren't always 1-to-1 (e.g. datetime)
 
+
 class FilterControl(object):
     filter_controls=[]
     def __init__(self,field_name,label=None):
@@ -94,4 +95,10 @@ class CustomMaskFilterControl(FilterControl):
 class StartsWithFilterControl(FilterControl):
     def get_fields(self):
         return {"%s__startswith"%self.field_name:forms.CharField(label=_("%s Starts With")%(self.label or self.field_name),
+                required=False)}
+
+
+class ContainsFilterControl(FilterControl):
+    def get_fields(self):
+        return {"%s__icontains"%self.field_name:forms.CharField(label=_("%s Contains")%(self.label or self.field_name),
                 required=False)}
