@@ -92,6 +92,10 @@ class Command(BaseCommand):
 
         ## Update the mask and run the report!
         mask = report.get_default_mask()
+        # get_custom_make alters the filters passed in removing 
+        # them from the filters if they are a custom mask
+        custom_mask, filters = report.get_custom_mask(filters)
+        mask.update(custom_mask)
         mask.update(filters)
         rows, aggregates = report.get_rows(mask, order_by=kwargs['order_by'])
 

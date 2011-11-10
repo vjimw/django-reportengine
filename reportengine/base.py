@@ -54,7 +54,7 @@ class Report(object):
         for k in self.default_mask.keys():
             v=self.default_mask[k]            
             m[k] =  callable(v) and v() or v
-        return m
+        return m 
     
     def get_custom_mask(self, filters):
         """
